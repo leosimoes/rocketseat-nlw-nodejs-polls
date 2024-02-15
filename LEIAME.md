@@ -12,3 +12,8 @@ Os passos para desenvolver o projeto são:
 - `npm install typescript @types/node -D`
 - `npx tsc --init`
 - `npm install tsx -D`
+
+3. Configurar servidor:
+- Criar arquivo `src/http/server.ts`;
+- Em `package.json`, adicionar `"scripts": {"dev": "tsx watch src/http/server.ts"}`;
+- Testar a execução pelo terminal com `npm run dev`.
