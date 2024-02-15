@@ -8,5 +8,9 @@
   },
   "keywords": [],
   "author": "Leonardo Simões",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^20.11.18",
+    "typescript": "^5.3.3"
+  }
 }
