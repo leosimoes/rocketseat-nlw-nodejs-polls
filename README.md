@@ -11,3 +11,4 @@ The steps to develop the project are:
 2. Install and configure **Typescript** through the terminal with:
 - `npm install typescript @types/node -D`
 - `npx tsc --init`
+- `npm install tsx -D`
