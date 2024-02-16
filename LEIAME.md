@@ -97,7 +97,7 @@ model Poll {
 }
 ```
 
-- No terminal, digite `npx prisma migrate dev` e depois `create polls` para criar migration
+- No terminal, digite `npx prisma migrate dev` e depois `create polls` para criar migration;
 - No terminal, digite `npx prisma studio` para abrir interface no navegador em `http://localhost:5555/`.
 
 7. Criar rota `POST /polls`:
@@ -135,6 +135,87 @@ app.listen({port: 3333}).then(()=>{
 {
   "title": "test1"
 }
+```
+
+Deve-se separar a criação da conexão do banco de dados da definição de rota, 
+e cada rota deve estar em um arquivo e deve exportar uma função async.
+
+8. Refatorar o código e criar `PollOption`:
+- Alterar `prisma/schema.prisma` adicionando `PollOption` e alterando `Poll`:
+
+```prisma
+model Poll {
+  options PollOption[]
+}
+
+model PollOption {
+  id String @id @default(uuid())
+  title String
+  pollId String
+
+  poll Poll @relation(fields: [pollId], references: [id])
+}
+```
+
+- No terminal, digite `npx prisma migrate dev` e depois `create polls options` para criar migration;
+- Criar arquivo `src/lib/prisma.ts`:
+
+```typescript
+import {PrismaClient} from '@prisma/client'
+
+export const prisma = new PrismaClient({
+    log: ['query']
+});
+```
+
+- Criar arquivo `src/http/routes/create-poll.ts`:
+
+```typescript
+import { z } from "zod";
+import { prisma } from '../../lib/prisma'
+import { FastifyInstance} from "fastify";
+
+export async function createPoll(app: FastifyInstance){
+
+  app.post('/polls', async (request, reply)=>{
+    const createPollBody = z.object({
+      title: z.string(),
+      options: z.array(z.string())
+    });
+
+    const {title, options} = createPollBody.parse(request.body);
+
+    const poll = await prisma.poll.create({
+      data: {
+        title,
+        options: {
+          createMany: {
+            data: options.map(option => {
+              return {title: option}
+            })
+          }
+        }
+      }
+    });
+
+    return reply.status(201).send({pollId: poll.id})
+  })
+}
+```
+
+- Alterar `src/http/server.ts` para usar a rota definida no outro arquivo:
+
+```typescript
+import fastify from 'fastify'
+import {createPoll} from "./routes/create-poll";
+
+const app = fastify();
+
+app.register(createPoll);
+
+app.listen({port: 3333}).then(()=>{
+    console.log('HTTP server running!');
+});
 ```
 
 

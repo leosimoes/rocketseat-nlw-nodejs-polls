@@ -137,6 +137,87 @@ app.listen({port: 3333}).then(()=>{
 }
 ```
 
+You must separate the creation of the database connection from the route definition,
+and each route must be in a file and must export an async function.
+
+8. Refactor the code and create `PollOption`:
+- Change `prisma/schema.prisma` by adding `PollOption` and changing `Poll`:
+
+```prism
+model Poll {
+   options PollOption[]
+}
+
+model PollOption {
+   id String @id @default(uuid())
+   title String
+   pollId String
+
+   poll Poll @relation(fields: [pollId], references: [id])
+}
+```
+
+- In the terminal, type `npx prisma migrate dev` and then `create polls options` to create migration;
+- Create file `src/lib/prisma.ts`:
+
+```typescript
+import {PrismaClient} from '@prisma/client'
+
+export const prism = new PrismaClient({
+     log: ['query']
+});
+```
+
+- Create file `src/http/routes/create-poll.ts`:
+
+```typescript
+import { z } from "zod";
+import { prism } from '../../lib/prisma'
+import { FastifyInstance} from "fastify";
+
+export async function createPoll(app: FastifyInstance){
+
+   app.post('/polls', async (request, reply)=>{
+     const createPollBody = z.object({
+       title: z.string(),
+       options: z.array(z.string())
+     });
+
+     const {title, options} = createPollBody.parse(request.body);
+
+     const poll = await prisma.poll.create({
+       date: {
+         title,
+         options: {
+           createMany: {
+             data: options.map(option => {
+               return {title: option}
+             })
+           }
+         }
+       }
+     });
+
+     return reply.status(201).send({pollId: poll.id})
+   })
+}
+```
+
+- Change `src/http/server.ts` to use the route defined in the other file:
+
+```typescript
+import fastify from 'fastify'
+import {createPoll} from "./routes/create-poll";
+
+const app = fastify();
+
+app.register(createPoll);
+
+app.listen({port: 3333}).then(()=>{
+     console.log('HTTP server running!');
+});
+```
+
 
 ## References
 Docker Hub - bitnami - Postgresql:
