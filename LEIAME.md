@@ -218,6 +218,46 @@ app.listen({port: 3333}).then(()=>{
 });
 ```
 
+9. Criar rota `GET /polls`:
+- Criar arquivo `src/http/routes/get-poll.ts`:
+
+```typescript
+import { z } from "zod";
+import { prisma } from '../../lib/prisma'
+import { FastifyInstance} from "fastify";
+
+export async function getPoll(app: FastifyInstance){
+    app.get('/polls/:pollId', async(request, reply) =>{
+        const getPollParams = z.object({
+            pollId: z.string().uuid()
+        })
+        const { pollId } = getPollParams.parse(request.params);
+        const poll = await prisma.poll.findUnique({
+           where: {
+               id: pollId
+           },
+            include: {
+               options: {
+                   select: {
+                       id: true,
+                       title: true
+                   }
+               }
+            }
+        });
+
+        return reply.send({ poll });
+    })
+}
+```
+
+- Alterar o arquivo `src/http/server.ts`:
+
+```typescript
+import { getPoll } from "./routes/get-poll";
+app.register(getPoll);
+```
+
 
 ## Referências
 Docker Hub - bitnami - Postgresql:
