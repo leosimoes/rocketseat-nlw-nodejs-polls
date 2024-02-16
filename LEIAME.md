@@ -100,6 +100,43 @@ model Poll {
 - No terminal, digite `npx prisma migrate dev` e depois `create polls` para criar migration
 - No terminal, digite `npx prisma studio` para abrir interface no navegador em `http://localhost:5555/`.
 
+7. Criar rota `POST /polls`:
+- Instalar zod para validação: `npm install zod`;
+- Alterar o arquivo `src/http/server.ts`:
+
+```typescript
+import fastify from 'fastify'
+import {z} from 'zod'
+import {PrismaClient} from '@prisma/client'
+
+const app = fastify();
+const prisma = new PrismaClient();
+
+app.post('/polls', async (request, reply)=>{
+    const createPollBody = z.object({
+        title: z.string()
+    });
+    const {title} = createPollBody.parse(request.body);
+    const poll = await prisma.poll.create({
+        data: {
+            title
+        }
+    });
+    return reply.status(201).send({pollId: poll.id})
+});
+
+app.listen({port: 3333}).then(()=>{
+    console.log('HTTP server running!');
+});
+```
+
+- Testar endpoint `POST http://localhost:3333/polls` com Postman:
+```json
+{
+  "title": "test1"
+}
+```
+
 
 ## Referências
 Docker Hub - bitnami - Postgresql:
