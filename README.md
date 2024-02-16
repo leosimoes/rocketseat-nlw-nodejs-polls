@@ -80,6 +80,26 @@ volumes:
 - In the terminal, to run the container services in the background, type `docker compose up -d`;
 - In the terminal, to display the logs of one of the containers, type `docker logs <id>`.
 
+6. Install Prisma and configure Prisma ORM:
+- In the terminal, type `npm i -d prisma` to install Prisma;
+- In the terminal, type `npx prism init`;
+- change the generated file `.env`:
+    - from `DATABASE_URL="postgresql://johndoe:randompassword@localhost:5432/mydb?schema=public"`;
+    - for `DATABASE_URL="postgresql://docker:docker@localhost:5432/polls?schema=public"`
+- change the generated file `prisma/schema.prisma`:
+
+```prism
+model Poll {
+   id String @id @default(uuid())
+   title String
+   createdAt DateTime @default(now())
+   updatedAt DateTime @default(now())
+}
+```
+
+- In the terminal, type `npx prisma migrate dev` and then `create polls` to create migration
+- In the terminal, type `npx prisma studio` to open the browser interface at `http://localhost:5555/`.
+
 
 ## References
 Docker Hub - bitnami - Postgresql:
@@ -87,3 +107,6 @@ https://hub.docker.com/r/bitnami/postgresql
 
 Docker Hub - bitnami - Redis:
 https://hub.docker.com/r/bitnami/redis
+
+Prisma:
+https://www.prisma.io/orm
