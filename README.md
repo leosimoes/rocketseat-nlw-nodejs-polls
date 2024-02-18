@@ -88,7 +88,16 @@ volumes:
     - for `DATABASE_URL="postgresql://docker:docker@localhost:5432/polls?schema=public"`
 - change the generated file `prisma/schema.prisma`:
 
-```prism
+```prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
 model Poll {
    id String @id @default(uuid())
    title String
@@ -143,7 +152,7 @@ and each route must be in a file and must export an async function.
 8. Refactor the code and create `PollOption`:
 - Change `prisma/schema.prisma` by adding `PollOption` and changing `Poll`:
 
-```prism
+```prisma
 model Poll {
    options PollOption[]
 }
@@ -257,6 +266,135 @@ export async function getPoll(app: FastifyInstance){
 import { getPoll } from "./routes/get-poll";
 app.register(getPoll);
 ```
+
+10. Create route `POST /polls/:pollId/votes`:
+- In the terminal, type `npm i @fastify/cookie` to be able to use cookies;
+- Create file `src/http/routes/vote-on-poll.ts`:
+
+```typescript
+import { z } from "zod"
+import { randomUUID} from "crypto";
+import { prism } from '../../lib/prisma'
+import { FastifyInstance } from "fastify"
+
+export async function voteOnPoll(app: FastifyInstance) {
+   app.post('/polls/:pollId/votes', async(request, reply) =>{
+     const voteOnPollBody = z.object({
+       pollOptionId: z.string().uuid()
+     })
+
+     const voteOnPollParams = z.object({
+       pollId: z.string().uuid()
+     })
+
+     const { pollId } = voteOnPollParams.parse(request.params)
+     const { pollOptionId } = voteOnPollBody.parse(request.body)
+
+     let { sessionId } = request.cookies
+
+     if(!sessionId){
+       sessionId = randomUUID()
+       reply.setCookie('sessionId', sessionId, {
+         path: '/',
+         maxAge: 60*60*24*30,
+         signed: true,
+         httpOnly: true
+       })
+     } else {
+       const userPreviousVoteOnPoll = await prisma.vote.findUnique({
+         Onde: {
+           sessionId_pollId: {
+             sessionId,
+             pollId
+           }
+         }
+       });
+
+       if(userPreviousVoteOnPoll && userPreviousVoteOnPoll.pollOptionId == pollOptionId){
+         return reply.status(400).send({
+           message: "You already voted on this poll."
+         })
+       } else if (userPreviousVoteOnPoll){
+         await prisma.vote.delete({
+           Onde: {
+             id: userPreviousVoteOnPoll.id
+           }
+         })
+       }
+     }
+
+     await prisma.vote.create({
+       date: {
+         sessionId,
+         pollId,
+         pollOptionId
+       }
+     })
+
+     return reply.status(201).send()
+   })
+}
+```
+
+- Change the file `src/http/server.ts`:
+
+```typescript
+import cookie from '@fastify/cookie'
+import { voteOnPoll} from "./routes/vote-on-poll";
+
+app.register(cookie, {
+   secret: 'my-cookie-secret-app-nlw',
+   hook: 'onRequest'
+});
+app.register(voteOnPoll);
+```
+- Change the generated file `prisma/schema.prisma`:
+
+```prism
+model Poll {
+   votes Vote[]
+}
+
+model PollOption {
+   votes Vote[]
+}
+
+model Vote {
+   id Int @id @default(autoincrement())
+   sessionId String
+   pollId String
+   pollOptionId String
+   createAt DateTime @default(now())
+
+   pollOption PollOption @relation(fields: [pollOptionId], references: [id])
+   poll Poll @relation(fields: [pollId], references: [id])
+
+   @@unique([sessionId, pollId])
+}
+```
+
+- In the terminal, type `npx prisma migrate dev` and then `create votes` to create migration;
+- Test with Postman and Prisma Studio:
+
+  * `POST /polls`:
+
+![Image-03-Postman-CreatePoll](imgs/Image-03-Postman-CreatePoll.jpg)
+
+![Image-05-PrismaStudio-PollOption](imgs/Image-05-PrismaStudio-PollOption.jpg)
+
+* `GET '/polls/:pollId`:
+
+![Image-06-Postman-GetPoll](imgs/Image-06-Postman-GetPoll.jpg)
+
+![Image-04-PrismaStudio-Poll](imgs/Image-04-PrismaStudio-Poll.jpg)
+
+* `POST /polls/:pollId/votes`:
+
+![Image-07-Postman-VotePoll-1](imgs/Image-07-Postman-VotePoll-1.jpg)
+
+![Image-08-Postman-VotePoll-2](imgs/Image-08-Postman-VotePoll-2.jpg)
+
+![Image-09-PrismaStudio-Vote](imgs/Image-09-PrismaStudio-Vote.jpg)
 
 
 ## References
