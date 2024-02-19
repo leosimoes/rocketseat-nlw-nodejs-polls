@@ -463,6 +463,97 @@ return reply.status(500).send({
 })
 ```
 
+12. Communicate the application backend with the frontend in Real Time using the Web Sockets protocol:
+- In the terminal, type `npm i @fastify/websocket` to install fastify websockets;
+
+- Create the file `src/http/utils/voting-pub-sub.ts`:
+
+```typescript
+type Message = { pollOptionId: string, votes: number }
+type Subscriber = (message: Message) => void
+
+class VotingPubSub {
+     private channels: Record<string, Subscriber[]> = {}
+
+     subscribe(pollId: string, subscriber: Subscriber){
+         if(!this.channels[pollId]) {
+             this.channels[pollId] = []
+         }
+         this.channels[pollId].push(subscriber)
+     }
+
+     publish(pollId: string, message: Message){
+         if(!this.channels[pollId]){
+             return;
+         }
+         for(const subscriber of this.channels[pollId]){
+             subscriber(message)
+         }
+     }
+}
+
+export const voting = new VotingPubSub();
+```
+- Create the file `src/http/ws/poll-results.ts`:
+
+```typescript
+import { FastifyInstance } from "fastify";
+import { voting } from "../../utils/voting-pub-sub";
+import { z } from "zod"
+
+export async function pollResults(app: FastifyInstance){
+     app.get('/polls/:pollId/results', {websocket: true}, (connection, request) => {
+
+         console.log("AAAAAAAAAA")
+         const getPollParams = z.object({
+             pollId: z.string().uuid()
+         })
+         const { pollId } = getPollParams.parse(request.params)
+
+         voting.subscribe(pollId, (message) => {
+             connection.socket.send(JSON.stringify(message))
+         })
+     })
+}
+```
+
+- Change the file `src/http/routes/vote-on-poll.ts`:
+
+```typescript
+import {voting} from '../../utils/voting-pub-sub';
+//...
+else if (userPreviousVoteOnPoll){
+   //...
+   const votes = await redis.zincrby(pollId, -1, userPreviousVoteOnPoll.pollOptionId)
+  
+   voting.publish(pollId, {
+     pollOptionId: userPreviousVoteOnPoll.pollOptionId,
+     votes: Number(votes)
+   })
+}
+//...
+const votes = await redis.zincrby(pollId, 1, pollOptionId)
+
+voting.publish(pollId, {
+   pollOptionId: pollOptionId,
+   votes: Number(votes)
+})
+//...
+```
+
+- Change the file `src/http/server.ts`:
+
+```typescript
+import fastifyWebsocket from "@fastify/websocket";
+import {pollResults} from "./ws/poll-results";
+app.register(fastifyWebsocket);
+app.register(pollResults);
+```
+
+- Test `ws://localhost:3333/polls/:pollId/results` with Postman:
+
+![Image-10-Postman-PollResults](imgs/Image-10-Postman-PollResults.jpg)
+
 
 ## References
 Docker Hub - bitnami - Postgresql:
