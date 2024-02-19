@@ -396,6 +396,73 @@ model Vote {
 
 ![Image-09-PrismaStudio-Vote](imgs/Image-09-PrismaStudio-Vote.jpg)
 
+11. Utilizar o Redis para armazenar as votações em cache:
+- No terminal, digite `npm i ioredis` para instalar o ioredis;
+- Criar arquivo `src/lib/redis.ts`:
+
+```typescript
+import { Redis } from "ioredis"
+
+export const redis = new Redis()
+```
+
+- Alterar o arquivo `src/http/routes/vote-on-poll.ts`:
+
+```typescript
+import { redis } from "../../lib/redis";
+// ...
+if (userPreviousVoteOnPoll){
+  await redis.zincrby(pollId, -1, userPreviousVoteOnPoll.pollOptionId)
+}
+// ...
+await redis.zincrby(pollId, 1, pollOptionId)
+```
+
+- Alterar o arquivo `src/http/routes/get-poll.ts`:
+
+```typescript
+import {redis} from "../../lib/redis";
+// ...
+ if(!poll) {
+  return reply.status(400).send({
+    message: 'Poll not found.'
+  })
+}
+
+const result = await redis.zrange(pollId, 0, -1, 'WITHSCORES')
+
+
+if(result){
+  const votes: { [key: string]: string } = {};
+
+  for (let i = 0; i < result.length; i += 2) {
+    const key = result[i] as string;
+    const value = result[i + 1] as string;
+    votes[key] = value;
+  }
+
+  console.log(votes)
+
+  return reply.send({
+    poll: {
+      id: poll.id,
+      title: poll.title,
+      options: poll.options.map(option =>{
+        return {
+          id: option.id,
+          title: option.title,
+          score: (option.id in votes) ? votes[option.id] : 0
+        }
+      })
+    }
+  });
+}
+
+return reply.status(500).send({
+  message: 'Other Errors.'
+})
+```
+
 
 ## Referências
 Docker Hub - bitnami - Postgresql:
@@ -406,3 +473,9 @@ https://hub.docker.com/r/bitnami/redis
 
 Prisma:
 https://www.prisma.io/orm
+
+Redis - zincrby:
+https://redis.io/commands/zincrby/
+
+Redis - zrange:
+https://redis.io/commands/zrange/
